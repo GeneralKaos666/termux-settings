@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-10-31
+
 ### Changed
 
 - The UI now reflows from the terminal's live size on every draw instead of a
@@ -98,7 +100,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - MIT licence.
 
-[Unreleased]: https://github.com/GeneralKaos666/termux-settings/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/GeneralKaos666/termux-settings/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/GeneralKaos666/termux-settings/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/GeneralKaos666/termux-settings/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/GeneralKaos666/termux-settings/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/GeneralKaos666/termux-settings/compare/v1.1.1...v1.2.0
