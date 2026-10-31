@@ -357,7 +357,8 @@ impl AppThemeEditor {
             return;
         }
         let slots = slots();
-        let end = (self.scroll + self.visible_rows).min(slots.len());
+        let visible = self.visible_rows.min(inner.height as usize);
+        let end = (self.scroll + visible).min(slots.len());
         for (row, slot) in slots.iter().enumerate().take(end).skip(self.scroll) {
             let row_area = Rect {
                 x: inner.x,

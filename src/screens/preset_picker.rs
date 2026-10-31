@@ -38,6 +38,10 @@ const PREVIEW_CONTENT_ROWS: u16 = 17;
 /// filter line and a few themes.
 const MIN_LIST_PANE_ROWS: u16 = 8;
 
+/// Rows the preview needs to show its name and a few mock-session lines; a
+/// shorter preview is dropped so the list keeps the rows.
+const MIN_PREVIEW_ROWS: u16 = 7;
+
 /// Which region of the picker has the keyboard.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum Focus {
@@ -313,7 +317,12 @@ impl PresetPicker {
             ),
             area,
         );
-        let (list_area, preview_area) = stacked(area, PREVIEW_CONTENT_ROWS + 2, MIN_LIST_PANE_ROWS);
+        let (list_area, preview_area) = stacked(
+            area,
+            PREVIEW_CONTENT_ROWS + 2,
+            MIN_LIST_PANE_ROWS,
+            MIN_PREVIEW_ROWS,
+        );
         self.render_list(frame, list_area, ui);
         self.render_preview(frame, preview_area, ui);
     }

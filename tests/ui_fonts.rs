@@ -118,6 +118,31 @@ fn import_flow_offers_clash_dialog() {
 }
 
 #[test]
+fn a_short_screen_keeps_the_font_rows() {
+    let root = tempfile::tempdir().unwrap().keep();
+    let paths = Paths::new(root);
+    std::fs::create_dir_all(paths.fonts_dir()).unwrap();
+    for name in ["A", "B", "C", "D", "E", "F"] {
+        std::fs::write(paths.fonts_dir().join(format!("{name}.ttf")), minimal_ttf()).unwrap();
+    }
+    let mut app = App::new(paths);
+    open_fonts(&mut app);
+
+    let text = render_text(&mut app, 100, 15);
+    assert!(
+        !text.contains(" Preview"),
+        "the prompt preview gives its rows to the list"
+    );
+    assert!(text.contains("F.ttf"), "the list keeps its rows:\n{text}");
+
+    let text = render_text(&mut app, 100, 11);
+    assert!(
+        text.contains("slot"),
+        "the slot line folds into the list title:\n{text}"
+    );
+}
+
+#[test]
 fn unreadable_library_shows_status() {
     let root = tempfile::tempdir().unwrap().keep();
     let paths = Paths::new(root);

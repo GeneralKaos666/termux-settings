@@ -20,6 +20,16 @@ use crate::ui::dialog::{Dialog, DialogResult};
 use crate::ui::input::Field;
 use crate::ui::{Ui, pane};
 
+/// Rows the prompt preview pane occupies: its border and one captured line.
+const PREVIEW_ROWS: u16 = 3;
+
+/// Rows the slot line occupies.
+const SLOT_ROWS: u16 = 2;
+
+/// Rows the font list keeps before the preview, then the slot line, are
+/// dropped so the list keeps showing fonts on a short screen.
+const MIN_LIST_ROWS: u16 = 10;
+
 #[derive(Clone, Debug)]
 pub struct FontsTab {
     entries: Vec<scan::FontEntry>,
@@ -290,19 +300,29 @@ impl FontsTab {
             ),
             area,
         );
-        let layout = Layout::default()
+        let preview_rows = if area.height >= MIN_LIST_ROWS + SLOT_ROWS + PREVIEW_ROWS {
+            PREVIEW_ROWS
+        } else {
+            0
+        };
+        let slot_rows = if area.height >= MIN_LIST_ROWS + SLOT_ROWS {
+            SLOT_ROWS
+        } else {
+            0
+        };
+        let [preview_area, slot_area, list_area] = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(3),
-                Constraint::Length(2),
-                Constraint::Min(5),
+                Constraint::Length(preview_rows),
+                Constraint::Length(slot_rows),
+                Constraint::Min(0),
             ])
-            .split(area);
+            .areas(area);
         // preview area
         let preview: Vec<Line> = self.prompt.iter().map(|l| Line::from(l.as_str())).collect();
         frame.render_widget(
             Paragraph::new(preview).block(pane(ui, " Preview")),
-            layout[0],
+            preview_area,
         );
         // slot info
         let (open, close) = ui.glyphs.chip();
@@ -317,13 +337,17 @@ impl FontsTab {
                         .add_modifier(Modifier::BOLD),
                 ),
             ])),
-            layout[1],
+            slot_area,
         );
         // font list
-        let title = format!(" Fonts ({})", self.visible.len());
+        let title = if slot_rows == 0 {
+            format!(" Fonts ({}) · slot {slot}", self.visible.len())
+        } else {
+            format!(" Fonts ({})", self.visible.len())
+        };
         let block = pane(ui, &title);
-        let inner = block.inner(layout[2]);
-        frame.render_widget(block, layout[2]);
+        let inner = block.inner(list_area);
+        frame.render_widget(block, list_area);
         if inner.width == 0 || inner.height == 0 {
             return;
         }

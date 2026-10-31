@@ -50,6 +50,10 @@ const PREVIEW_CONTENT_ROWS: u16 = 17;
 /// `basics` rule and its three fields.
 const MIN_FORM_PANE_ROWS: u16 = 8;
 
+/// Rows the preview needs to show its heading and a few mock-session lines; a
+/// shorter preview is dropped so the form keeps the rows.
+const MIN_PREVIEW_ROWS: u16 = 9;
+
 /// The step a dialog answer resumes, set just before the dialog opens.
 #[derive(Clone, Debug)]
 pub enum TerminalPending {
@@ -99,7 +103,12 @@ pub fn sanitize_name(name: &str) -> String {
 
 /// Split `area` into the form on top and the preview below.
 fn stacked_areas(area: Rect) -> (Rect, Rect) {
-    stacked(area, PREVIEW_CONTENT_ROWS + 2, MIN_FORM_PANE_ROWS)
+    stacked(
+        area,
+        PREVIEW_CONTENT_ROWS + 2,
+        MIN_FORM_PANE_ROWS,
+        MIN_PREVIEW_ROWS,
+    )
 }
 
 /// The terminal colour editor's state.

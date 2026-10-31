@@ -24,12 +24,21 @@ const MIN_PANE_ROWS: u16 = 2;
 /// The preview is given `preview_rows` — its content plus both borders — and
 /// the primary pane takes the rest, never dropping below `min_primary_rows`.
 /// When the area is too short for both, the preview shrinks first and is
-/// dropped once less than [`MIN_PANE_ROWS`] is left for it, so the primary pane
-/// always stays usable.
-pub fn stacked(area: Rect, preview_rows: u16, min_primary_rows: u16) -> (Rect, Rect) {
+/// dropped once less than `min_preview_rows` is left for it: a shorter preview
+/// would only show its borders while the primary pane needs the rows.
+pub fn stacked(
+    area: Rect,
+    preview_rows: u16,
+    min_primary_rows: u16,
+    min_preview_rows: u16,
+) -> (Rect, Rect) {
     let room = area.height.saturating_sub(min_primary_rows + 1);
     let preview = preview_rows.min(room);
-    let preview = if preview < MIN_PANE_ROWS { 0 } else { preview };
+    let preview = if preview < min_preview_rows.max(MIN_PANE_ROWS) {
+        0
+    } else {
+        preview
+    };
     let [primary, preview] = Layout::vertical([Constraint::Min(0), Constraint::Length(preview)])
         .spacing(u16::from(preview > 0))
         .areas(area);
@@ -65,7 +74,7 @@ mod tests {
 
     #[test]
     fn the_preview_keeps_its_height_when_there_is_room() {
-        let (primary, preview) = stacked(area(40), 19, 8);
+        let (primary, preview) = stacked(area(40), 19, 8, 7);
         assert_eq!(preview.height, 19);
         assert_eq!(primary.height, 40 - 1 - 19);
         assert_eq!(preview.y, primary.height + 1);
@@ -74,7 +83,7 @@ mod tests {
 
     #[test]
     fn the_primary_pane_keeps_its_minimum_when_space_runs_out() {
-        let (primary, preview) = stacked(area(22), 19, 8);
+        let (primary, preview) = stacked(area(22), 19, 8, 7);
         assert_eq!(primary.height, 8);
         assert_eq!(preview.height, 22 - 1 - 8);
     }
@@ -82,9 +91,16 @@ mod tests {
     #[test]
     fn the_preview_is_dropped_when_a_border_cannot_fit() {
         for height in 0..=10 {
-            let (primary, preview) = stacked(area(height), 19, 8);
+            let (primary, preview) = stacked(area(height), 19, 8, 7);
             assert_eq!(preview.height, 0, "height {height}");
             assert_eq!(primary.height, height, "height {height}");
         }
+    }
+
+    #[test]
+    fn a_preview_too_short_to_show_content_is_dropped() {
+        let (primary, preview) = stacked(area(13), 19, 8, 7);
+        assert_eq!(preview.height, 0);
+        assert_eq!(primary.height, 13);
     }
 }

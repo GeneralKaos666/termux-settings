@@ -150,13 +150,16 @@ impl App {
     }
 
     /// Draw the current screen and, when set, the status line.
-    pub fn render(&self, frame: &mut Frame) {
-        let area = if self.area.width > 0 && self.area.height > 0 {
-            self.area
-        } else {
-            frame.area()
-        };
-        if area.width < MIN_WIDTH || area.height < MIN_HEIGHT {
+    ///
+    /// The layout is derived from the frame's live area, so the UI reflows as
+    /// soon as the terminal shrinks — when the on-screen keyboard opens, for
+    /// instance — even if no resize event has been read yet.
+    pub fn render(&mut self, frame: &mut Frame) {
+        let area = frame.area();
+        if area != self.area {
+            self.set_area(area);
+        }
+        if self.too_small {
             self.render_too_small(frame, area);
             return;
         }
@@ -261,6 +264,9 @@ impl App {
     }
 
     /// Record the terminal size and let the current screen re-derive geometry.
+    ///
+    /// Called for a resize event and, from [`App::render`], whenever the frame
+    /// area differs, so a missed event cannot leave stale geometry behind.
     pub fn set_area(&mut self, area: Rect) {
         self.area = area;
         self.too_small = area.width < MIN_WIDTH || area.height < MIN_HEIGHT;

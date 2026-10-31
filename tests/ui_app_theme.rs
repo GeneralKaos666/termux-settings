@@ -2,7 +2,9 @@ mod support;
 
 use crossterm::event::KeyCode;
 use std::os::unix::fs::PermissionsExt;
-use support::{app_theme_with, focus_row, key, open_app_theme, render_text, row_index, set_row};
+use support::{
+    app_theme_mut, app_theme_with, focus_row, key, open_app_theme, render_text, row_index, set_row,
+};
 use termux_settings::app::{App, Command};
 use termux_settings::paths::Paths;
 use termux_settings::ui::dialog::DialogResult;
@@ -22,6 +24,22 @@ fn rows_initialise_from_the_file_in_schema_order() {
     assert!(text.contains("Cursor style"));
     assert!(text.contains("bar"));
     assert!(text.contains("Black UI"));
+}
+
+#[test]
+fn the_focused_row_stays_visible_when_the_view_shrinks() {
+    let (mut app, _paths) = app_theme_with("");
+    let last = app_theme_mut(&mut app).rows.len() - 1;
+    focus_row(&mut app, last);
+
+    let tall = render_text(&mut app, 100, 40);
+    assert!(tall.contains("Allow external apps"));
+
+    let short = render_text(&mut app, 100, 14);
+    assert!(
+        short.contains("Allow external apps"),
+        "the focused row scrolled out of a shorter view:\n{short}"
+    );
 }
 
 #[test]

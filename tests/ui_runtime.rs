@@ -19,12 +19,12 @@ fn tick_expires_status_within_one_tick() {
 }
 
 #[test]
-fn resize_sets_too_small() {
+fn small_frames_show_the_guard_and_larger_ones_recover() {
     let dir = tempfile::tempdir().unwrap();
     let mut app = App::new(Paths::new(dir.path()));
     app.update(Msg::Resize(39, 9));
-    let rendered = render_text(&mut app, 100, 30);
-    assert!(rendered.contains("too small"));
+    assert!(render_text(&mut app, 39, 9).contains("too small"));
+    assert!(!render_text(&mut app, 100, 30).contains("too small"));
 }
 
 #[test]

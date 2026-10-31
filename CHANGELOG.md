@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The UI now reflows from the terminal's live size on every draw instead of a
+  cached one, so showing the on-screen keyboard — or any resize event the app
+  missed — can no longer leave a screen laid out for the taller view.
+- On short terminals the preview panes give their rows back to the lists: the
+  theme list and the terminal-color form are drawn full-height, and the Fonts
+  tab drops its prompt preview, then folds the slot into the list title, so the
+  font list keeps showing fonts while the keyboard is open.
+
 ## [1.3.0] - 2026-10-31
 
 ### Security
