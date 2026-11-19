@@ -59,6 +59,13 @@ for arch in aarch64 arm; do
     fail "installs \$PREFIX/bin/termux-settings for $arch"
   [ "$(grep -c 'termux-settings$' "$work/contents-$arch")" -eq 1 ] ||
     fail "ships exactly one copy of the binary for $arch"
+  grep -q ' \./data/data/com.termux/files/usr/share/doc/termux-settings/copyright$' \
+    "$work/contents-$arch" ||
+    fail "installs the license as share/doc/termux-settings/copyright for $arch"
+  dpkg-deb -x "$deb" "$work/extract-$arch"
+  cmp -s "$repo/LICENSE" \
+    "$work/extract-$arch/data/data/com.termux/files/usr/share/doc/termux-settings/copyright" ||
+    fail "ships the repository LICENSE verbatim for $arch"
 
   pass "builds a valid $arch package"
 done

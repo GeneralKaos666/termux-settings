@@ -88,7 +88,8 @@ pkg install ./termux-settings_*_aarch64.deb
 ```
 
 Use `termux-settings_*_arm.deb` when `uname -m` prints `armv7l`. The packages
-install to `$PREFIX/bin`, so `pkg remove termux-settings` uninstalls them.
+install to `$PREFIX/bin`, so `pkg remove termux-settings` uninstalls them, and
+install the MIT licence at `$PREFIX/share/doc/termux-settings/copyright`.
 
 ### Release binary
 

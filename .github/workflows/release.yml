@@ -98,6 +98,7 @@ jobs:
             test "$(dpkg-deb --field "$deb" Architecture)" = "$arch"
             dpkg-deb --contents "$deb" >deb.list
             test "$(grep -c ' \./data/data/com\.termux/files/usr/bin/termux-settings$' deb.list)" -eq 1
+            test "$(grep -c ' \./data/data/com\.termux/files/usr/share/doc/termux-settings/copyright$' deb.list)" -eq 1
           done
       - uses: actions/upload-artifact@v7
         with:
@@ -121,6 +122,7 @@ jobs:
         if: github.ref_type == 'tag'
         with:
           files: |
+            LICENSE
             termux-settings-aarch64-linux-android
             termux-settings-aarch64-linux-android.sha256
             termux-settings-armv7-linux-androideabi

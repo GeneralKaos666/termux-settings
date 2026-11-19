@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-11-18
+
+### Fixed
+
+- The `.deb` packages install the MIT licence at
+  `$PREFIX/share/doc/termux-settings/copyright` instead of shipping only the
+  binary, and each GitHub release now attaches `LICENSE`.
+
 ## [1.4.0] - 2026-11-18
 
 ### Added
@@ -130,7 +138,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - MIT licence.
 
-[Unreleased]: https://github.com/GeneralKaos666/termux-settings/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/GeneralKaos666/termux-settings/compare/v1.4.1...HEAD
+[1.4.1]: https://github.com/GeneralKaos666/termux-settings/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/GeneralKaos666/termux-settings/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/GeneralKaos666/termux-settings/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/GeneralKaos666/termux-settings/compare/v1.2.1...v1.3.0

@@ -45,9 +45,20 @@ command -v dpkg-deb >/dev/null 2>&1 || {
 work=$(mktemp -d "${TMPDIR:-/tmp}/termux-settings-deb.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
+script_dir=$(CDPATH='' cd "$(dirname "$0")" && pwd)
+license="$script_dir/../LICENSE"
+[ -f "$license" ] || {
+  printf 'no such license file: %s\n' "$license" >&2
+  exit 2
+}
+
 root="$work/termux-settings"
-mkdir -p "$root/DEBIAN" "$root/data/data/com.termux/files/usr/bin"
+docdir="$root/data/data/com.termux/files/usr/share/doc/termux-settings"
+mkdir -p "$root/DEBIAN" "$root/data/data/com.termux/files/usr/bin" "$docdir"
 install -m 755 "$binary" "$root/data/data/com.termux/files/usr/bin/termux-settings"
+# Debian keeps the license at share/doc/<package>/copyright; Termux follows the
+# same layout, so `pkg` installs leave the MIT text on the device.
+install -m 644 "$license" "$docdir/copyright"
 
 size_kb=$((($(wc -c <"$binary") + 1023) / 1024))
 cat >"$root/DEBIAN/control" <<EOF
