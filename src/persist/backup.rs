@@ -12,6 +12,10 @@ use time::error::IndeterminateOffset;
 use time::{OffsetDateTime, UtcOffset};
 
 use crate::error::Result;
+use crate::persist::fs::write_atomic;
+
+/// How many backups of one kind are kept; older ones are pruned.
+pub const BACKUPS_KEPT: usize = 10;
 
 /// A completed backup: where it was written and whether UTC was used.
 #[derive(Debug)]
@@ -82,7 +86,8 @@ pub fn is_stamped_name(name: &str, stem: &str, ext: &str) -> bool {
 /// Copies `source` into `dir` under a timestamped name with extension `ext`.
 ///
 /// See [`make_backup`]; identical except the caller chooses the extension
-/// (including the leading dot, e.g. `".ttf"`).
+/// (including the leading dot, e.g. `".ttf"`). After writing, only the newest
+/// [`BACKUPS_KEPT`] backups of this prefix and extension are kept.
 pub fn make_unique_backup(
     source: &Path,
     dir: &Path,
@@ -108,11 +113,100 @@ pub fn make_unique_backup(
         counter += 1;
     }
     std::fs::write(&destination, bytes)?;
+    prune_backups(dir, prefix, ext);
 
     Ok(Some(Backup {
         path: destination,
         utc_fallback,
     }))
+}
+
+/// The stamp and collision counter encoded in a backup file name.
+///
+/// Accepts `<stem>-<YYYY-MM-DD-HHMMSS><ext>` and the collision form with a
+/// `-<n>` suffix. Returns `None` for any other name, so a pruning pass can
+/// never touch a user file that merely shares the prefix.
+fn backup_parts<'a>(name: &'a str, stem: &str, ext: &str) -> Option<(&'a str, u64)> {
+    let prefix = format!("{stem}-");
+    if !name.starts_with(&prefix) || !name.ends_with(ext) {
+        return None;
+    }
+    let middle = &name[prefix.len()..name.len().checked_sub(ext.len())?];
+    if middle.len() < 17 {
+        return None;
+    }
+    let (stamp, rest) = middle.split_at(17);
+    let stamp_ok = stamp.char_indices().all(|(index, c)| {
+        if matches!(index, 4 | 7 | 10) {
+            c == '-'
+        } else {
+            c.is_ascii_digit()
+        }
+    });
+    if !stamp_ok {
+        return None;
+    }
+    let ordinal = if rest.is_empty() {
+        0
+    } else {
+        rest.strip_prefix('-')?.parse().ok()?
+    };
+    Some((stamp, ordinal))
+}
+
+/// Whether `name` is a backup of `stem` with extension `ext`, including the
+/// `-<n>` collision suffix.
+pub fn is_backup_name(name: &str, stem: &str, ext: &str) -> bool {
+    backup_parts(name, stem, ext).is_some()
+}
+
+/// Deletes all but the newest [`BACKUPS_KEPT`] backups of `stem`/`ext` in `dir`.
+///
+/// Names are ordered by their timestamp and collision counter, not by file
+/// modification time, so a copied or restored file cannot jump the queue.
+fn prune_backups(dir: &Path, stem: &str, ext: &str) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    let mut matching: Vec<(String, u64, PathBuf)> = entries
+        .flatten()
+        .filter_map(|entry| {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            let (stamp, ordinal) = backup_parts(&name, stem, ext)?;
+            Some((stamp.to_owned(), ordinal, entry.path()))
+        })
+        .collect();
+    matching.sort_by(|a, b| b.0.cmp(&a.0).then(b.1.cmp(&a.1)));
+    for (_, _, path) in matching.into_iter().skip(BACKUPS_KEPT) {
+        let _ = std::fs::remove_file(path);
+    }
+}
+
+/// Copies backup `source` over `target`, backing up the current target first.
+///
+/// `source` must be a direct child of `dir` and must match the `<prefix>-…`
+/// backup naming scheme, so a crafted argument cannot read an arbitrary file.
+/// Returns the backup of the replaced file, when there was one.
+pub fn restore_backup(
+    source: &Path,
+    target: &Path,
+    dir: &Path,
+    prefix: &str,
+    ext: &str,
+) -> Result<Option<Backup>> {
+    let name = source
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| crate::error::Error::Invalid("backup name is not valid UTF-8".to_owned()))?;
+    if source.parent() != Some(dir) || !is_backup_name(name, prefix, ext) {
+        return Err(crate::error::Error::Invalid(format!(
+            "not a {prefix} backup: {name}"
+        )));
+    }
+    let bytes = std::fs::read(source)?;
+    let previous = make_unique_backup(target, dir, prefix, ext)?;
+    write_atomic(target, &bytes)?;
+    Ok(previous)
 }
 
 /// Lists the regular files in `dir`, newest first by modification time.
@@ -279,5 +373,91 @@ mod tests {
             .to_string();
         assert!(name.starts_with("font-") && name.ends_with(".ttf"));
         assert_eq!(std::fs::read(&backup.path).unwrap(), b"fontbytes");
+    }
+
+    #[test]
+    fn keeps_only_the_newest_backups() {
+        let dir = tempfile::tempdir().unwrap();
+        for ordinal in 0..6 {
+            std::fs::write(
+                dir.path()
+                    .join(format!("colors-2026-01-01-000000-{ordinal}.properties")),
+                b"old",
+            )
+            .unwrap();
+            std::fs::write(
+                dir.path()
+                    .join(format!("colors-2026-01-02-000000-{ordinal}.properties")),
+                b"new",
+            )
+            .unwrap();
+        }
+        prune_backups(dir.path(), "colors", ".properties");
+
+        let mut names: Vec<String> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .flatten()
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        assert_eq!(names.len(), BACKUPS_KEPT);
+        assert!(
+            !names
+                .iter()
+                .any(|name| name.contains("2026-01-01-000000-0."))
+        );
+        assert!(
+            !names
+                .iter()
+                .any(|name| name.contains("2026-01-01-000000-1."))
+        );
+        assert!(is_backup_name(
+            "colors-2026-10-25-123456-2.properties",
+            "colors",
+            ".properties"
+        ));
+    }
+
+    #[test]
+    fn restore_replaces_the_target_and_keeps_the_old_bytes() {
+        let dir = tempfile::tempdir().unwrap();
+        let backups = dir.path().join("backups");
+        std::fs::create_dir_all(&backups).unwrap();
+        let target = dir.path().join("colors.properties");
+        std::fs::write(&target, b"current").unwrap();
+        let source = backups.join("colors-2026-10-25-123456.properties");
+        std::fs::write(&source, b"restored").unwrap();
+
+        let previous = restore_backup(&source, &target, &backups, "colors", ".properties")
+            .unwrap()
+            .expect("the current file is backed up");
+        assert_eq!(std::fs::read(&target).unwrap(), b"restored");
+        assert_eq!(std::fs::read(&previous.path).unwrap(), b"current");
+    }
+
+    #[test]
+    fn restore_refuses_a_file_outside_the_backup_scheme() {
+        let dir = tempfile::tempdir().unwrap();
+        let backups = dir.path().join("backups");
+        std::fs::create_dir_all(&backups).unwrap();
+        let target = dir.path().join("colors.properties");
+        let outside = dir.path().join("colors-2026-10-25-123456.properties");
+        std::fs::write(&outside, b"nope").unwrap();
+
+        assert!(
+            restore_backup(&outside, &target, &backups, "colors", ".properties").is_err(),
+            "a backup must live in the backups directory"
+        );
+        assert!(
+            restore_backup(
+                &backups.join("notes.properties"),
+                &target,
+                &backups,
+                "colors",
+                ".properties"
+            )
+            .is_err(),
+            "an unrelated file name is not a colors backup"
+        );
     }
 }

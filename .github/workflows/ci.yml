@@ -13,12 +13,19 @@ on:
 permissions:
   contents: read
 
+# A new push supersedes the previous run for the same ref; the weekly advisory
+# scan still runs on its own.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'schedule' }}
+
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   test:
     if: github.event_name != 'schedule'
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -42,9 +49,64 @@ jobs:
       # fail here instead of after a tag is pushed.
       - if: matrix.rust == 'stable'
         run: sh tests/scripts/build_deb_test.sh
+      # Enter raw mode and the alternate screen once, under a real pty; the
+      # TestBackend tests never exercise that path.
+      - if: matrix.rust == 'stable'
+        run: |
+          cargo build --locked
+          sh tests/scripts/tui_smoke_test.sh target/debug/termux-settings
+
+  lint:
+    if: github.event_name != 'schedule'
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: actionlint
+        run: |
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          "$(go env GOPATH)/bin/actionlint"
+      - name: shellcheck
+        run: shellcheck scripts/*.sh tests/scripts/*.sh docs/record-demo.sh
+
+  coverage:
+    if: github.event_name != 'schedule'
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - run: cargo llvm-cov --locked --all-targets --lcov --output-path lcov.info
+      - run: cargo llvm-cov report --summary-only >>"$GITHUB_STEP_SUMMARY"
+      - uses: codecov/codecov-action@v5
+        with:
+          files: lcov.info
+          fail_ci_if_error: false
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-lcov
+          path: lcov.info
+          if-no-files-found: error
+
+  # The advisory job below only reads RustSec; this job also checks licenses,
+  # duplicate versions and where a dependency came from.
+  deny:
+    if: github.event_name != 'schedule'
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
 
   android:
     if: github.event_name != 'schedule'
+    timeout-minutes: 25
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -55,10 +117,13 @@ jobs:
         with:
           ndk-version: r26d
       - uses: Swatinem/rust-cache@v2
-      - run: cargo install cargo-ndk --version 4.1.2 --locked
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-ndk@4.1.2
       - run: cargo ndk -t arm64-v8a -t armeabi-v7a --platform 24 build --locked
 
   audit:
+    timeout-minutes: 10
     runs-on: ubuntu-latest
     # The scheduled run files an issue per new advisory, and every run posts a
     # check; without these scopes the token is read-only and both fail.

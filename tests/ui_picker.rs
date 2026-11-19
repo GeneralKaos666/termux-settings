@@ -4,6 +4,7 @@ use support::{key, open_picker, picker_theme_path, picker_with, render_text};
 use termux_settings::app::App;
 use termux_settings::paths::Paths;
 use termux_settings::screens::preset_picker::load_themes;
+use termux_settings::ui::dialog::DialogResult;
 use termux_settings::ui::focus::{Move, list_move};
 
 #[test]
@@ -170,4 +171,132 @@ fn the_list_sits_above_the_preview() {
         text.contains(".properties"),
         "the preview's last line fits in its pane"
     );
+}
+
+#[test]
+fn deleting_a_theme_asks_first_and_removes_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let paths = Paths::new(dir.path());
+    let theme = paths.colors_root().join("T.properties");
+    std::fs::create_dir_all(paths.colors_root()).unwrap();
+    std::fs::write(&theme, "background=#000000\n").unwrap();
+
+    let mut app = App::new(paths);
+    open_picker(&mut app);
+    app.handle_key(key(crossterm::event::KeyCode::Char('d')));
+    assert!(app.dialog().is_some(), "delete asks for confirmation");
+    assert!(theme.exists(), "nothing is removed before the answer");
+
+    app.resolve_dialog(DialogResult::Confirmed(true));
+    assert!(!theme.exists(), "the confirmed theme is gone");
+}
+
+#[test]
+fn a_cancelled_delete_keeps_the_theme() {
+    let dir = tempfile::tempdir().unwrap();
+    let paths = Paths::new(dir.path());
+    let theme = paths.colors_root().join("T.properties");
+    std::fs::create_dir_all(paths.colors_root()).unwrap();
+    std::fs::write(&theme, "background=#000000\n").unwrap();
+
+    let mut app = App::new(paths);
+    open_picker(&mut app);
+    app.handle_key(key(crossterm::event::KeyCode::Char('d')));
+    app.resolve_dialog(DialogResult::Confirmed(false));
+    assert!(theme.exists());
+}
+
+#[test]
+fn the_active_theme_cannot_be_deleted() {
+    let dir = tempfile::tempdir().unwrap();
+    let paths = Paths::new(dir.path());
+    let theme = paths.colors_root().join("T.properties");
+    std::fs::create_dir_all(paths.colors_root()).unwrap();
+    std::fs::write(&theme, "background=#000000\n").unwrap();
+    std::os::unix::fs::symlink(&theme, paths.colors_properties()).unwrap();
+
+    let mut app = App::new(paths);
+    open_picker(&mut app);
+    app.handle_key(key(crossterm::event::KeyCode::Char('d')));
+    assert!(app.dialog().is_none());
+    assert!(theme.exists());
+    assert!(render_text(&mut app, 100, 30).contains("Cannot delete"));
+}
+
+#[test]
+fn renaming_moves_the_theme_and_keeps_its_content() {
+    let dir = tempfile::tempdir().unwrap();
+    let paths = Paths::new(dir.path());
+    let theme = paths.colors_root().join("Old.properties");
+    std::fs::create_dir_all(paths.colors_root()).unwrap();
+    std::fs::write(&theme, "background=#000000\n").unwrap();
+
+    let mut app = App::new(paths.clone());
+    open_picker(&mut app);
+    app.handle_key(key(crossterm::event::KeyCode::Char('R')));
+    assert!(app.dialog().is_some(), "rename asks for a name");
+    app.resolve_dialog(DialogResult::Text(Some("New".to_owned())));
+
+    let renamed = paths.colors_root().join("New.properties");
+    assert!(!theme.exists());
+    assert_eq!(
+        std::fs::read_to_string(&renamed).unwrap(),
+        "background=#000000\n"
+    );
+}
+
+#[test]
+fn renaming_the_active_theme_retargets_the_link() {
+    let dir = tempfile::tempdir().unwrap();
+    let paths = Paths::new(dir.path());
+    let theme = paths.colors_root().join("Old.properties");
+    std::fs::create_dir_all(paths.colors_root()).unwrap();
+    std::fs::write(&theme, "background=#000000\n").unwrap();
+    std::os::unix::fs::symlink(&theme, paths.colors_properties()).unwrap();
+
+    let mut app = App::new(paths.clone());
+    open_picker(&mut app);
+    app.handle_key(key(crossterm::event::KeyCode::Char('R')));
+    app.resolve_dialog(DialogResult::Text(Some("New".to_owned())));
+
+    assert_eq!(
+        std::fs::canonicalize(paths.colors_properties()).unwrap(),
+        std::fs::canonicalize(paths.colors_root().join("New.properties")).unwrap()
+    );
+}
+
+#[test]
+fn a_rename_cannot_escape_the_library() {
+    let dir = tempfile::tempdir().unwrap();
+    let paths = Paths::new(dir.path());
+    let theme = paths.colors_root().join("Old.properties");
+    std::fs::create_dir_all(paths.colors_root()).unwrap();
+    std::fs::write(&theme, "background=#000000\n").unwrap();
+
+    let mut app = App::new(paths.clone());
+    open_picker(&mut app);
+    app.handle_key(key(crossterm::event::KeyCode::Char('R')));
+    app.resolve_dialog(DialogResult::Text(Some("../escape".to_owned())));
+
+    assert!(theme.exists());
+    assert!(!dir.path().join("escape.properties").exists());
+    assert!(render_text(&mut app, 100, 30).contains("Rename failed"));
+}
+
+#[test]
+fn deleting_the_last_theme_does_not_reseed_builtins() {
+    let dir = tempfile::tempdir().unwrap();
+    let paths = Paths::new(dir.path());
+    let theme = paths.colors_root().join("Only.properties");
+    std::fs::create_dir_all(paths.colors_root()).unwrap();
+    std::fs::write(&theme, "background=#000000\n").unwrap();
+
+    let mut app = App::new(paths.clone());
+    open_picker(&mut app);
+    app.handle_key(key(crossterm::event::KeyCode::Char('d')));
+    app.resolve_dialog(DialogResult::Confirmed(true));
+
+    assert!(!theme.exists());
+    assert!(!paths.colors_root().join("builtin").exists());
+    assert!(render_text(&mut app, 100, 30).contains("No themes found"));
 }

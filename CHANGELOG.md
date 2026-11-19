@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-18
+
+### Added
+
+- `--list-themes` and `--apply-theme <name>` for scripted and dotfile-driven
+  theme changes, matching the existing font commands.
+- `--list-backups` and `--restore-backup <name>`. A restore writes the backup
+  back over the config file it came from and backs up the current file first.
+- `d` and `R` in Preset Themes delete and rename a theme. Deleting the active
+  theme is refused; renaming it retargets `colors.properties`.
+- The README now has a recorded demo GIF, rebuilt by `docs/record-demo.sh`.
+- CI measures coverage (`cargo llvm-cov`), uploads it to Codecov, runs
+  `cargo deny check`, `actionlint` and `shellcheck`, and drives the TUI once
+  under a real pty.
+- Property tests for the line-preserving property editor, so an arbitrary
+  comment or continuation line cannot be lost by an edit.
+- `rust-toolchain.toml`, `deny.toml`, issue forms and a pull-request template.
+- The crates.io and docs.rs badges, and a `cargo install termux-settings`
+  install path in the README.
+
+### Changed
+
+- Backups keep the ten newest files per kind; older timestamped copies are
+  pruned after a new backup is written.
+- CI cancels superseded runs, gives every job a timeout, and installs
+  `cargo-ndk` through `taiki-e/install-action` instead of compiling it on every
+  run.
+- `README.md`, `CONTRIBUTING.md` and `docs/structure.md` link to each other and
+  describe the new commands, tests and tooling.
+
 ## [1.3.1] - 2026-10-31
 
 ### Changed
@@ -100,7 +130,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - MIT licence.
 
-[Unreleased]: https://github.com/GeneralKaos666/termux-settings/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/GeneralKaos666/termux-settings/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/GeneralKaos666/termux-settings/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/GeneralKaos666/termux-settings/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/GeneralKaos666/termux-settings/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/GeneralKaos666/termux-settings/compare/v1.2.0...v1.2.1

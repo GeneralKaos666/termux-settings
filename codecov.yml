@@ -1,0 +1,20 @@
+# Codecov configuration.
+#
+# Coverage is reported and commented on, but not gated: the project reports it
+# to catch accidental regressions, and a missing line should not block a PR.
+
+coverage:
+  status:
+    project:
+      default:
+        informational: true
+    patch:
+      default:
+        informational: true
+  ignore:
+    - "tests/**"
+    - "docs/**"
+
+comment:
+  layout: "condensed"
+  require_changes: true

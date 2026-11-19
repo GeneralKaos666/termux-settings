@@ -2,10 +2,15 @@
 
 [![CI](https://github.com/GeneralKaos666/termux-settings/actions/workflows/ci.yml/badge.svg)](https://github.com/GeneralKaos666/termux-settings/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/GeneralKaos666/termux-settings)](https://github.com/GeneralKaos666/termux-settings/releases/latest)
+[![crates.io](https://img.shields.io/crates/v/termux-settings.svg)](https://crates.io/crates/termux-settings)
+[![docs.rs](https://img.shields.io/docsrs/termux-settings)](https://docs.rs/termux-settings)
+[![codecov](https://codecov.io/gh/GeneralKaos666/termux-settings/graph/badge.svg)](https://codecov.io/gh/GeneralKaos666/termux-settings)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 A keyboard-driven TUI for [Termux](https://termux.dev) that changes your
 terminal colours, your Termux app theme, and your fonts.
+
+![termux-settings demo](docs/demo.gif)
 
 ```
 termux-settings
@@ -104,6 +109,17 @@ curl -LO https://github.com/GeneralKaos666/termux-settings/releases/latest/downl
 sha256sum -c termux-settings-aarch64-linux-android.sha256
 ```
 
+### crates.io
+
+The crate is published as [`termux-settings`](https://crates.io/crates/termux-settings).
+This needs a Rust toolchain on the device, so the APT and `.deb` paths above
+are faster unless you already build Rust on Termux:
+
+```sh
+pkg install rust
+cargo install termux-settings
+```
+
 ### From source
 
 Rust 1.88.0 or newer is required (let-chains and the patched `time` release
@@ -152,6 +168,8 @@ keys. The common ones:
 | `Ctrl+A` | save as a new theme (Terminal Colors) |
 | `Ctrl+R` | revert unsaved edits (editors) |
 | `r` | reload the theme library (Preset Themes) |
+| `d` | delete the selected theme (Preset Themes; refuses the active one) |
+| `R` | rename the selected theme (Preset Themes) |
 | `p` / `Space` | preview the selected font into the current slot (Fonts) |
 | `s` | cycle the font slot (Fonts) |
 | `i` | import a font file (Fonts) |
@@ -170,20 +188,30 @@ termux-settings                            # launch the TUI
 termux-settings --list-fonts               # list fonts in ~/.termux/fonts/
 termux-settings --apply-font FiraCode       # install a font to a slot
 termux-settings --apply-font FiraCode --slot bold
+termux-settings --list-themes               # list themes in ~/.termux/colors/
+termux-settings --apply-theme dracula       # activate a theme
+termux-settings --list-backups              # list ~/.termux/backups/
+termux-settings --restore-backup colors-2026-10-25-123456.properties
 termux-settings --version                  # print the version
 termux-settings --ascii                    # plain-ASCII glyphs
 ```
 
 `--slot` takes `regular`, `bold`, `italic`, or `bold-italic` (default
-`regular`). `--ascii` (or `TERMUX_SETTINGS_ASCII=1`) swaps the Unicode glyphs for
-plain-ASCII equivalents everywhere — pane and dialog borders, the selection
-markers, and the help bar; the legacy `TERMUX_COLORS_ASCII` and
-`FONT_CHANGER_ASCII` variables are still honoured.
+`regular`). `--apply-theme` accepts either the library label (`group/theme`) or
+the bare theme name, ignoring case. `--restore-backup` takes the file name that
+`--list-backups` prints and writes it back over the config file it came from,
+making one backup of the current file first. `--ascii` (or
+`TERMUX_SETTINGS_ASCII=1`) swaps the Unicode glyphs for plain-ASCII equivalents
+everywhere — pane and dialog borders, the selection markers, and the help bar;
+the legacy `TERMUX_COLORS_ASCII` and `FONT_CHANGER_ASCII` variables are still
+honoured.
 
 Exit codes: `--list-fonts` exits `1` when the font library exists but cannot be
-read; `--apply-font` with an unknown name, or `--slot` with an unknown slot,
-exits `2`. Unknown options, unexpected arguments and options missing their value
-are usage errors and also exit `2`. Any other error exits `1`.
+read; `--apply-font` with an unknown name, `--apply-theme` with an unknown
+theme, `--restore-backup` with an unknown or path-like name, or `--slot` with an
+unknown slot, exits `2`. Unknown options, unexpected arguments and options
+missing their value are usage errors and also exit `2`. Any other error exits
+`1`.
 
 ## Relationship to `colors.sh`
 
@@ -204,6 +232,8 @@ same as the previous version.
 
 Rust 1.88.0 or newer; `1.88.0` is the toolchain CI tests, so a feature that
 needs anything newer needs a `rust-version` bump in `Cargo.toml` first.
+`rust-toolchain.toml` pins that toolchain (with `rustfmt` and `clippy`) for
+contributors who use `rustup`.
 
 ```sh
 pkg install rust
@@ -215,12 +245,36 @@ Lint before committing:
 ```sh
 cargo fmt --check
 cargo clippy --all-targets -- -D warnings
+cargo deny check          # licenses, duplicates and sources (install: cargo install cargo-deny)
+```
+
+Coverage is not a gate, but CI measures it on every pull request:
+
+```sh
+cargo llvm-cov --all-targets --summary-only
 ```
 
 Tests point the app at a temporary directory through the `TERMUX_HOME`
-environment variable, so they never touch your real config.
+environment variable, so they never touch your real config. The TUI lifecycle
+(raw mode and the alternate screen) is exercised once by
+`sh tests/scripts/tui_smoke_test.sh target/debug/termux-settings`, which needs a
+built binary and `script`.
 
 ## Backups
 
-Backups are plain copies named `colors-YYYY-MM-DD-HHMMSS.properties` or
-`termux-YYYY-MM-DD-HHMMSS.properties` under `~/.termux/backups/`.
+Backups are plain copies named `colors-YYYY-MM-DD-HHMMSS.properties`,
+`termux-YYYY-MM-DD-HHMMSS.properties`, or `<font-slot>-YYYY-MM-DD-HHMMSS.ttf`
+under `~/.termux/backups/`. The ten newest backups of each kind are kept; older
+ones are pruned after a new backup is written.
+
+Use `--list-backups` to see them, newest first, and `--restore-backup <name>` to
+put one back. A restore backs up the current file before overwriting it, so the
+restore itself can be undone.
+
+## Contributing
+
+The workflow, commit rules and test seams are in
+[`CONTRIBUTING.md`](CONTRIBUTING.md). The module map is in
+[`docs/structure.md`](docs/structure.md), designs and plans live under
+`docs/specs/` and `docs/plans/`, and security reports go through
+[`SECURITY.md`](SECURITY.md).

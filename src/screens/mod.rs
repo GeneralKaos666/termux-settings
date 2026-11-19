@@ -192,7 +192,7 @@ impl Screen {
     pub fn on_dialog(&mut self, result: DialogResult, paths: &Paths) -> ScreenAction {
         match self {
             Self::Main(screen) => screen.on_dialog(result, paths),
-            Self::Presets(_) => ScreenAction::None,
+            Self::Presets(screen) => screen.on_dialog(result, paths),
             Self::Terminal(screen) => screen.on_dialog(result, paths),
             Self::AppTheme(screen) => screen.on_dialog(result, paths),
             Self::FontsTab(screen) => screen.on_dialog(result, paths),

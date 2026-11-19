@@ -3,3 +3,6 @@
 
 # Superpowers scratch workspace
 .superpowers/
+
+# Demo recorder scratch frames
+docs/.demo-frames.*

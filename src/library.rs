@@ -181,6 +181,77 @@ pub fn apply_theme(theme: &Path, colors_properties: &Path) -> Result<()> {
     Ok(())
 }
 
+/// The theme whose label or bare name matches `name`, ignoring case.
+///
+/// `name` may be `group/theme` (the label) or just `theme`; the first match in
+/// library order wins.
+pub fn resolve_theme(root: &Path, name: &str) -> Option<ThemeRef> {
+    let needle = name.to_lowercase();
+    scan_themes(root)
+        .into_iter()
+        .find(|theme| theme.label().to_lowercase() == needle || theme.name.to_lowercase() == needle)
+}
+
+/// Returns the `.properties` stem `new_name` asks for, or an error when it is
+/// not a plain file name.
+fn theme_stem(new_name: &str) -> Result<&str> {
+    let stem = new_name.trim();
+    let stem = stem.strip_suffix(".properties").unwrap_or(stem);
+    if stem.is_empty() || stem == "." || stem == ".." {
+        return Err(Error::Invalid("theme name is empty".to_owned()));
+    }
+    if stem.starts_with('.') {
+        return Err(Error::Invalid(
+            "theme name cannot start with a dot".to_owned(),
+        ));
+    }
+    if stem.contains('/') || stem.contains('\\') || stem.contains('\0') {
+        return Err(Error::Invalid(
+            "theme name cannot contain path separators".to_owned(),
+        ));
+    }
+    Ok(stem)
+}
+
+/// Renames the theme file at `theme` to `<new_name>.properties` in the same
+/// directory, returning the new path.
+///
+/// `termux.properties`-style backups and other files are untouched. The caller
+/// must retarget `colors.properties` when the renamed theme is the active one.
+pub fn rename_theme(theme: &Path, new_name: &str) -> Result<PathBuf> {
+    let stem = theme_stem(new_name)?;
+    let parent = theme
+        .parent()
+        .ok_or_else(|| Error::Invalid("theme has no parent directory".to_owned()))?;
+    let destination = parent.join(format!("{stem}.properties"));
+    if destination == theme {
+        return Ok(destination);
+    }
+    if !theme.is_file() {
+        return Err(Error::NotFound(theme.to_path_buf()));
+    }
+    if destination.exists() {
+        return Err(Error::Invalid(format!(
+            "a theme named {stem:?} already exists"
+        )));
+    }
+    std::fs::rename(theme, &destination)?;
+    Ok(destination)
+}
+
+/// Deletes the theme file at `theme`.
+///
+/// Removing the active theme is refused by the caller, not here; this only
+/// unlinks the file so a backup or a still-linked `colors.properties` can be
+/// handled deliberately.
+pub fn delete_theme(theme: &Path) -> Result<()> {
+    if !theme.is_file() {
+        return Err(Error::NotFound(theme.to_path_buf()));
+    }
+    std::fs::remove_file(theme)?;
+    Ok(())
+}
+
 /// Runs `termux-reload-settings` when it is on the process `PATH`.
 pub fn reload_termux() -> bool {
     reload_with_path_env(None)

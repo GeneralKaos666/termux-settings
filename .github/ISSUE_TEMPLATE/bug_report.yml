@@ -1,0 +1,67 @@
+name: Bug report
+description: Something in termux-settings does not work as documented.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not report security problems here. Use the
+        [security advisory form](https://github.com/GeneralKaos666/termux-settings/security/advisories/new)
+        instead; `SECURITY.md` explains what is in scope.
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: One or two sentences. Include the exact error text if there is one.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Paste the output of `termux-settings --version`.
+      placeholder: termux-settings 1.3.1
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Termux version, Android version, device, and terminal size (`stty size` inside the TUI is enough).
+      placeholder: Termux 0.118.3, Android 14, Pixel 7, 80x24
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The smallest sequence of keys or commands that shows the problem.
+      placeholder: |
+        1. Run `termux-settings`
+        2. Open Preset Themes
+        3. Press ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: Relevant configuration
+      description: Paste only the lines that matter. Remove tokens, paths with your name, and anything private.
+      render: properties
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: This is the latest release, or `main` if you built from source.
+          required: true
+        - label: I searched the existing issues for the same problem.
+          required: true

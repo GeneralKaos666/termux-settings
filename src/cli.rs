@@ -3,6 +3,7 @@
 
 use std::env;
 use std::io;
+use std::path::PathBuf;
 use std::process::ExitCode;
 use std::time::Instant;
 
@@ -13,8 +14,10 @@ use ratatui::backend::CrosstermBackend;
 use crate::app::App;
 use crate::error::Result;
 use crate::fonts;
+use crate::library::{self, resolve_theme, scan_themes};
 use crate::model::font_slot::FontSlot;
 use crate::paths::Paths;
+use crate::persist::backup::{self, is_backup_name, list_backups};
 use crate::runtime::{Msg, TICK};
 use crate::terminal;
 use crate::ui::Glyphs;
@@ -23,6 +26,10 @@ use crate::ui::Glyphs;
 pub struct Args {
     pub list_fonts: bool,
     pub apply_font: Option<String>,
+    pub list_themes: bool,
+    pub apply_theme: Option<String>,
+    pub list_backups: bool,
+    pub restore_backup: Option<String>,
     pub slot: Option<FontSlot>,
     pub version: bool,
     pub help: bool,
@@ -41,6 +48,10 @@ pub const HELP: &str = concat!(
     "      --version           print the version and exit\n",
     "      --list-fonts        list fonts in ~/.termux/fonts/\n",
     "      --apply-font <name> install a font from the library\n",
+    "      --list-themes       list themes in ~/.termux/colors/\n",
+    "      --apply-theme <name> activate a theme from the library\n",
+    "      --list-backups      list backups in ~/.termux/backups/\n",
+    "      --restore-backup <name> restore a backup over its original file\n",
     "      --slot <slot>       regular, bold, italic, bold-italic (default regular)\n",
     "      --ascii             plain-ASCII glyphs\n\n",
     "Environment:\n",
@@ -78,6 +89,20 @@ impl Args {
                     args.apply_font = Some(
                         argv.next()
                             .ok_or_else(|| "--apply-font needs a value".to_owned())?,
+                    );
+                }
+                "--list-themes" => args.list_themes = true,
+                "--apply-theme" => {
+                    args.apply_theme = Some(
+                        argv.next()
+                            .ok_or_else(|| "--apply-theme needs a value".to_owned())?,
+                    );
+                }
+                "--list-backups" => args.list_backups = true,
+                "--restore-backup" => {
+                    args.restore_backup = Some(
+                        argv.next()
+                            .ok_or_else(|| "--restore-backup needs a value".to_owned())?,
                     );
                 }
                 "--slot" => {
@@ -155,6 +180,50 @@ pub fn run(args: Args, paths: &Paths) -> Result<ExitCode> {
         return Ok(ExitCode::from(2));
     }
 
+    if args.list_themes {
+        for theme in scan_themes(&paths.colors_root()) {
+            println!("{}", theme.label());
+        }
+        return Ok(ExitCode::SUCCESS);
+    }
+    if let Some(ref name) = args.apply_theme {
+        let Some(theme) = resolve_theme(&paths.colors_root(), name) else {
+            eprintln!("unknown theme: {name:?}");
+            return Ok(ExitCode::from(2));
+        };
+        library::apply_theme(&theme.path, &paths.colors_properties())?;
+        if !library::reload_termux() {
+            eprintln!("Run termux-reload-settings to refresh.");
+        }
+        println!("Applied {} ({})", theme.label(), theme.path.display());
+        return Ok(ExitCode::SUCCESS);
+    }
+    if args.list_backups {
+        for path in list_backups(&paths.backups_dir())? {
+            if let Some(name) = path.file_name() {
+                println!("{}", name.to_string_lossy());
+            }
+        }
+        return Ok(ExitCode::SUCCESS);
+    }
+    if let Some(ref name) = args.restore_backup {
+        if name.contains('/') || name.contains('\\') {
+            eprintln!("invalid backup name: {name:?}");
+            return Ok(ExitCode::from(2));
+        }
+        let Some((target, prefix, ext)) = restore_target(paths, name) else {
+            eprintln!("unknown backup: {name:?}");
+            return Ok(ExitCode::from(2));
+        };
+        let backups = paths.backups_dir();
+        backup::restore_backup(&backups.join(name), &target, &backups, prefix, ext)?;
+        if !library::reload_termux() {
+            eprintln!("Run termux-reload-settings to refresh.");
+        }
+        println!("Restored {name} to {}", target.display());
+        return Ok(ExitCode::SUCCESS);
+    }
+
     terminal::install_panic_hook();
     let _guard = terminal::Terminal::enter()?;
     let mut terminal = Terminal::new(CrosstermBackend::new(io::stdout()))?;
@@ -179,4 +248,22 @@ pub fn run(args: Args, paths: &Paths) -> Result<ExitCode> {
         }
     }
     Ok(ExitCode::SUCCESS)
+}
+
+/// The file a backup name restores, plus the prefix and extension that name
+/// must carry.
+fn restore_target(paths: &Paths, name: &str) -> Option<(PathBuf, &'static str, &'static str)> {
+    if is_backup_name(name, "colors", ".properties") {
+        return Some((paths.colors_properties(), "colors", ".properties"));
+    }
+    if is_backup_name(name, "termux", ".properties") {
+        return Some((paths.termux_properties(), "termux", ".properties"));
+    }
+    for slot in FontSlot::ALL {
+        let stem = slot.file_name().trim_end_matches(".ttf");
+        if is_backup_name(name, stem, ".ttf") {
+            return Some((paths.font_slot_path(slot), stem, ".ttf"));
+        }
+    }
+    None
 }

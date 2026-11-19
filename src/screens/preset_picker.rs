@@ -13,12 +13,15 @@ use ratatui::widgets::{
 };
 
 use crate::chrome;
-use crate::library::{ThemeRef, active_theme_path, apply_theme, scan_themes};
+use crate::library::{
+    ThemeRef, active_theme_path, apply_theme, delete_theme, rename_theme, scan_themes,
+};
 use crate::model::colors::TerminalColors;
 use crate::paths::Paths;
 use crate::persist::colors_io::read_colors;
 use crate::presets::materialize;
 use crate::screens::ScreenAction;
+use crate::ui::dialog::{Dialog, DialogResult};
 use crate::ui::focus::{Move, list_move};
 use crate::ui::input::Field;
 use crate::ui::text;
@@ -49,6 +52,13 @@ enum Focus {
     Filter,
 }
 
+/// A library change waiting for the user to confirm it in a dialog.
+#[derive(Clone, Debug)]
+enum Pending {
+    DeleteTheme(PathBuf),
+    RenameTheme(PathBuf),
+}
+
 /// The theme picker's state.
 pub struct PresetPicker {
     /// Every theme found in the library.
@@ -68,6 +78,8 @@ pub struct PresetPicker {
     /// The theme library root, for computing the active theme's label.
     colors_root: PathBuf,
     focus: Focus,
+    /// The delete or rename the open dialog is confirming.
+    pending: Option<Pending>,
 }
 
 /// Scan the library, seeding the built-in themes when it is empty.
@@ -101,6 +113,7 @@ impl PresetPicker {
             canon: HashMap::new(),
             colors_root: paths.colors_root(),
             focus: Focus::List,
+            pending: None,
         };
         picker.fill_cache();
         picker
@@ -191,6 +204,8 @@ impl PresetPicker {
                 ("↑/↓", "move"),
                 ("Enter", "apply"),
                 ("r", "reload"),
+                ("d", "delete"),
+                ("R", "rename"),
                 ("Tab", "filter"),
             ],
             Focus::Filter => vec![("type", "filter"), ("Enter", "done"), ("Esc", "clear")],
@@ -225,6 +240,8 @@ impl PresetPicker {
                 self.reload(paths);
                 return self.refresh();
             }
+            KeyCode::Char('d') => return self.confirm_delete(),
+            KeyCode::Char('R') => return self.prompt_rename(),
             _ => {}
         }
         let movement = match key.code {
@@ -265,11 +282,23 @@ impl PresetPicker {
         }
     }
 
+    /// Refresh the palette from the highlighted theme and show `message`.
+    fn refresh_with(&mut self, message: String) -> ScreenAction {
+        match self.refresh() {
+            ScreenAction::Applied { colors, reload, .. } => ScreenAction::Applied {
+                colors,
+                message: Some(message),
+                reload,
+            },
+            _ => ScreenAction::status(&message),
+        }
+    }
+
     /// Re-scan the library, keeping the filter and, when possible, the
     /// highlighted theme.
     pub fn reload(&mut self, paths: &Paths) {
         let previous = self.selected().map(|theme| theme.path.clone());
-        self.all = load_themes(paths);
+        self.all = scan_themes(&paths.colors_root());
         self.cache.clear();
         self.canon.clear();
         self.fill_cache();
@@ -305,6 +334,97 @@ impl PresetPicker {
         self.active
             .as_ref()
             .is_some_and(|active| self.canon.get(&theme.path) == Some(active))
+    }
+
+    /// Ask before deleting the highlighted theme.
+    fn confirm_delete(&mut self) -> ScreenAction {
+        let Some(theme) = self.selected().cloned() else {
+            return ScreenAction::None;
+        };
+        if self.is_active(&theme) {
+            return ScreenAction::status("Cannot delete the active theme.");
+        }
+        self.pending = Some(Pending::DeleteTheme(theme.path.clone()));
+        ScreenAction::OpenDialog(Dialog::confirm(
+            &format!("Delete {}? This cannot be undone.", theme.label()),
+            "Delete",
+            "Cancel",
+        ))
+    }
+
+    /// Ask for the new name of the highlighted theme.
+    fn prompt_rename(&mut self) -> ScreenAction {
+        let Some(theme) = self.selected().cloned() else {
+            return ScreenAction::None;
+        };
+        self.pending = Some(Pending::RenameTheme(theme.path.clone()));
+        ScreenAction::OpenDialog(Dialog::prompt(
+            "Rename theme (without .properties)",
+            &theme.name,
+        ))
+    }
+
+    /// Apply a confirmed delete or rename from the dialog.
+    pub fn on_dialog(&mut self, result: DialogResult, paths: &Paths) -> ScreenAction {
+        let Some(pending) = self.pending.take() else {
+            return ScreenAction::None;
+        };
+        match (pending, result) {
+            (Pending::DeleteTheme(path), DialogResult::Confirmed(true)) => {
+                if self
+                    .active
+                    .as_ref()
+                    .is_some_and(|active| self.canon.get(&path) == Some(active))
+                {
+                    return ScreenAction::status("Cannot delete the active theme.");
+                }
+                let name = path
+                    .file_stem()
+                    .map(|stem| stem.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                if let Err(error) = delete_theme(&path) {
+                    return ScreenAction::status(&format!("Delete failed: {error}"));
+                }
+                self.reload(paths);
+                self.refresh_with(format!("Deleted {name}."))
+            }
+            (Pending::RenameTheme(path), DialogResult::Text(Some(name))) => {
+                let was_active = self
+                    .active
+                    .as_ref()
+                    .is_some_and(|active| self.canon.get(&path) == Some(active));
+                let renamed = match rename_theme(&path, &name) {
+                    Ok(renamed) => renamed,
+                    Err(error) => {
+                        return ScreenAction::status(&format!("Rename failed: {error}"));
+                    }
+                };
+                if was_active {
+                    if let Err(error) = apply_theme(&renamed, &paths.colors_properties()) {
+                        return ScreenAction::status(&format!(
+                            "Renamed, but the active link failed: {error}"
+                        ));
+                    }
+                    self.active = std::fs::canonicalize(&renamed).ok();
+                }
+                self.reload(paths);
+                if let Some(row) = self.visible.iter().position(|&index| {
+                    self.all
+                        .get(index)
+                        .is_some_and(|theme| theme.path == renamed)
+                }) {
+                    self.list.select(Some(row));
+                }
+                self.refresh_with(format!(
+                    "Renamed to {}.",
+                    renamed
+                        .file_stem()
+                        .map(|stem| stem.to_string_lossy().into_owned())
+                        .unwrap_or_default()
+                ))
+            }
+            _ => ScreenAction::None,
+        }
     }
 
     /// Draw the filter, the theme list and the preview.

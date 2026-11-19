@@ -5,7 +5,8 @@ Thanks for taking a look. This project is small, so the rules are short.
 ## Requirements
 
 - Rust 1.88.0 or newer (`rust-version` in `Cargo.toml`; CI tests that exact
-  toolchain as well as stable).
+  toolchain as well as stable). `rust-toolchain.toml` pins 1.88.0 with
+  `rustfmt` and `clippy` for `rustup` users.
 - On Termux: `pkg install rust git`.
 - A terminal at least 40×10 for manual testing of the TUI.
 
@@ -45,10 +46,20 @@ Both must be clean before a pull request is reviewed:
 ```sh
 cargo fmt --check
 cargo clippy --all-targets -- -D warnings
+cargo deny check
 ```
 
-CI additionally runs `actionlint` on the workflows and `shellcheck` on the
-scripts in `scripts/`.
+`cargo deny` checks licenses, duplicate versions and dependency sources against
+`deny.toml`; install it with `cargo install cargo-deny`.
+
+CI additionally runs `actionlint` on the workflows, `shellcheck` on the scripts
+in `scripts/`, `tests/scripts/` and `docs/record-demo.sh`, measures coverage
+with `cargo llvm-cov`, and drives the TUI once under a real pty:
+
+```sh
+cargo build
+sh tests/scripts/tui_smoke_test.sh target/debug/termux-settings
+```
 
 ## Commit conventions
 
