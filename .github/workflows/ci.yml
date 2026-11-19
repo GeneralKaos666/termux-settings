@@ -26,6 +26,10 @@ jobs:
   test:
     if: github.event_name != 'schedule'
     timeout-minutes: 20
+    env:
+      # A rust-toolchain.toml selects the channel too, so name the matrix entry
+      # explicitly; the MSRV job must not silently build with stable.
+      RUSTUP_TOOLCHAIN: ${{ matrix.rust }}
     strategy:
       fail-fast: false
       matrix:
@@ -107,6 +111,8 @@ jobs:
   android:
     if: github.event_name != 'schedule'
     timeout-minutes: 25
+    env:
+      RUSTUP_TOOLCHAIN: stable
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

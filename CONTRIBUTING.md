@@ -5,8 +5,8 @@ Thanks for taking a look. This project is small, so the rules are short.
 ## Requirements
 
 - Rust 1.88.0 or newer (`rust-version` in `Cargo.toml`; CI tests that exact
-  toolchain as well as stable). `rust-toolchain.toml` pins 1.88.0 with
-  `rustfmt` and `clippy` for `rustup` users.
+  toolchain as well as stable). `rust-toolchain.toml` selects stable with
+  `rustfmt` and `clippy`; CI overrides the channel per job.
 - On Termux: `pkg install rust git`.
 - A terminal at least 40×10 for manual testing of the TUI.
 

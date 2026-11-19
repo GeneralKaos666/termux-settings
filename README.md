@@ -232,8 +232,8 @@ same as the previous version.
 
 Rust 1.88.0 or newer; `1.88.0` is the toolchain CI tests, so a feature that
 needs anything newer needs a `rust-version` bump in `Cargo.toml` first.
-`rust-toolchain.toml` pins that toolchain (with `rustfmt` and `clippy`) for
-contributors who use `rustup`.
+`rust-toolchain.toml` selects stable with `rustfmt` and `clippy` for local work;
+CI names the exact channel for the MSRV and Android jobs.
 
 ```sh
 pkg install rust

@@ -52,7 +52,7 @@ with concrete gaps outside that core:
 | Active theme | Refuse delete, retarget on rename | Deleting would leave a dangling link; retargeting keeps the active colours. |
 | CI gates | Lint, coverage, deny, pty smoke | Each covers a failure the existing jobs cannot see. Deny runs on advisories, licenses, duplicates and sources. |
 | Demo recording | `termtosvg` → `rsvg-convert` → GIF | VHS needs Chromium, which Termux does not ship; the still-frame path uses tools already present. |
-| Toolchain file | Pin `1.88.0` with `rustfmt` and `clippy` | Matches the MSRV CI already treats as the compatibility gate. `RUSTUP_TOOLCHAIN` from CI still selects stable. |
+| Toolchain file | Stable locally; CI names its channel | `rust-toolchain.toml` gives contributors `rustfmt` and `clippy`, while `RUSTUP_TOOLCHAIN` in each CI job keeps the MSRV matrix and Android targets on the toolchain the job installed. |
 
 ## Acceptance criteria
 

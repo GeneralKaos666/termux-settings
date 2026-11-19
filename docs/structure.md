@@ -22,7 +22,7 @@ logic of its own.
 │   ├── plans/                  implementation plans, one per feature
 │   ├── specs/                  design documents, one per feature
 │   └── structure.md            this file
-├── rust-toolchain.toml         contributor toolchain pin (1.88.0 + rustfmt/clippy)
+├── rust-toolchain.toml         local stable toolchain + rustfmt/clippy (CI selects its own)
 ├── scripts/
 │   ├── build-deb.sh                wraps a release binary in a Termux .deb
 │   ├── check-release-version.sh    fails a release tag that disagrees with Cargo.toml

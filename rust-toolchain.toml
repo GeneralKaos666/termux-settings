@@ -1,3 +1,5 @@
+# Local default for rustup users. CI overrides the channel with
+# RUSTUP_TOOLCHAIN so the MSRV and Android jobs use the toolchain they install.
 [toolchain]
-channel = "1.88.0"
+channel = "stable"
 components = ["rustfmt", "clippy"]
