@@ -44,8 +44,7 @@ pub fn swatch_grid(colors: &TerminalColors) -> Vec<Line<'static>> {
     let mut lines = Vec::with_capacity(5);
     for start in [0, 8] {
         let mut spans = Vec::new();
-        for index in start..start + 8 {
-            let background = colors.palette[index];
+        for (index, &background) in colors.palette.iter().enumerate().skip(start).take(8) {
             let foreground = contrast_color(background);
             spans.push(Span::styled(
                 format!("{index:>2}"),
