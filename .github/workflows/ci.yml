@@ -86,7 +86,7 @@ jobs:
       - uses: taiki-e/install-action@cargo-llvm-cov
       - run: cargo llvm-cov --locked --all-targets --lcov --output-path lcov.info
       - run: cargo llvm-cov report --summary-only >>"$GITHUB_STEP_SUMMARY"
-      - uses: codecov/codecov-action@v5
+      - uses: codecov/codecov-action@v7
         with:
           files: lcov.info
           fail_ci_if_error: false
